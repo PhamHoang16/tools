@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test màn hình - Soi điểm chết</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #111; font-family: Segoe UI, Arial, sans-serif; }
+  #screen { width: 100vw; height: 100vh; cursor: pointer; transition: background .15s; }
+  #intro {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: #1a1a1a; color: #eee; text-align: center; padding: 24px;
+  }
+  #intro .box { max-width: 640px; }
+  #intro h1 { font-size: 26px; margin-bottom: 16px; color: #4da3ff; }
+  #intro p { font-size: 16px; line-height: 1.7; margin-bottom: 12px; color: #ccc; }
+  #intro kbd {
+    background: #333; border: 1px solid #555; border-radius: 4px; padding: 2px 8px;
+    font-family: monospace; color: #fff;
+  }
+  #intro button {
+    margin-top: 18px; font-size: 18px; padding: 12px 28px; border: 0; border-radius: 8px;
+    background: #4da3ff; color: #fff; cursor: pointer;
+  }
+  #intro button:hover { background: #3a8de0; }
+  #hud {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.55); color: #fff; padding: 6px 16px; border-radius: 20px;
+    font-size: 14px; pointer-events: none; opacity: .85; display: none;
+  }
+  .gradient { background: linear-gradient(90deg, #000, #fff); }
+  .grid {
+    background-image:
+      linear-gradient(#888 1px, transparent 1px),
+      linear-gradient(90deg, #888 1px, transparent 1px);
+    background-size: 40px 40px; background-color: #000;
+  }
+</style>
+</head>
+<body>
+  <div id="screen"></div>
+  <div id="hud"></div>
+
+  <div id="intro">
+    <div class="box">
+      <h1>🖥️ Test màn hình laptop — Soi điểm chết &amp; độ đều màu</h1>
+      <p>Bấm <strong>Bắt đầu</strong>, màn hình sẽ đổi qua các màu thuần (đỏ, lục, lam, trắng, đen, xám) và vài hoạ tiết kiểm tra.</p>
+      <p>👉 <strong>Click chuột</strong> hoặc bấm <kbd>→</kbd> để qua màu kế tiếp, <kbd>←</kbd> để quay lại.</p>
+      <p>Soi kỹ từng màu: <strong>điểm chết</strong> (chấm đen/sáng không đổi màu), <strong>điểm kẹt màu</strong>, vùng <strong>ố/hở sáng</strong> (loang sáng ở mép — rõ nhất trên nền đen), <strong>đốm/vết xước</strong>.</p>
+      <p>Bấm <kbd>F11</kbd> để vào toàn màn hình trước cho chuẩn. <kbd>Esc</kbd> để thoát.</p>
+      <button onclick="start()">Bắt đầu ▶</button>
+    </div>
+  </div>
+
+<script>
+  const colors = [
+    {bg:'#FF0000', name:'1/9 — ĐỎ thuần (tìm điểm kẹt/chết)'},
+    {bg:'#00FF00', name:'2/9 — LỤC thuần'},
+    {bg:'#0000FF', name:'3/9 — LAM thuần'},
+    {bg:'#FFFFFF', name:'4/9 — TRẮNG (soi đốm bẩn, ố vàng, đều sáng)'},
+    {bg:'#000000', name:'5/9 — ĐEN (soi hở sáng mép, điểm sáng kẹt)'},
+    {bg:'#808080', name:'6/9 — XÁM 50% (soi độ đều màu)'},
+    {bg:'#FFFF00', name:'7/9 — VÀNG'},
+    {bg:'__GRADIENT__', name:'8/9 — Dải chuyển đen→trắng (soi dải màu/banding)'},
+    {bg:'__GRID__', name:'9/9 — Lưới ô (soi méo hình, hội tụ)'},
+  ];
+  let i = 0;
+  const screen = document.getElementById('screen');
+  const hud = document.getElementById('hud');
+  const intro = document.getElementById('intro');
+
+  function render() {
+    const c = colors[i];
+    screen.className = '';
+    screen.style.background = '';
+    if (c.bg === '__GRADIENT__') screen.classList.add('gradient');
+    else if (c.bg === '__GRID__') screen.classList.add('grid');
+    else screen.style.background = c.bg;
+    hud.textContent = c.name + '   (← → để chuyển, Esc thoát)';
+  }
+  function next(){ i = (i+1) % colors.length; render(); }
+  function prev(){ i = (i-1+colors.length) % colors.length; render(); }
+
+  function start(){
+    intro.style.display = 'none';
+    hud.style.display = 'block';
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(()=>{});
+    }
+    render();
+    setTimeout(()=>{ hud.style.opacity = '0.15'; }, 2500);
+  }
+
+  screen.addEventListener('click', next);
+  document.addEventListener('keydown', e => {
+    if (intro.style.display === 'none') {
+      if (e.key === 'ArrowRight' || e.key === ' ') next();
+      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'Escape') { if (document.exitFullscreen) document.exitFullscreen().catch(()=>{}); }
+    } else if (e.key === 'Enter') start();
+  });
+  // Hien HUD ro khi di chuot
+  document.addEventListener('mousemove', ()=>{ hud.style.opacity='0.85'; clearTimeout(window._h); window._h=setTimeout(()=>hud.style.opacity='0.15',2000); });
+</script>
+</body>
+</html>
