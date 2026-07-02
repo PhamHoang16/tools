@@ -1,0 +1,4 @@
+# /etc/default/earlyoom
+# Kiem tra moi 60s; kich hoat khi RAM trong <=5% VA swap trong <=5%.
+# Uu tien "giet" 1 tab trinh duyet; tranh dong tien trinh he thong quan trong.
+EARLYOOM_ARGS="-r 60 -m 5 -s 5 -n -g --prefer '(^|/)(msedge|chrome|chromium|firefox|Web Content|Isolated Web Co)$' --avoid '(^|/)(init|systemd|Xorg|Xwayland|gnome-shell|gdm|sshd|dbus-daemon|NetworkManager|bash|zsh)$'"
