@@ -37,6 +37,18 @@ backup() {
   fi
 }
 
+# Ubuntu 22.04+ bat san systemd-oomd. Hai daemon OOM chay song song se tranh
+# nhau: systemd-oomd lam viec theo cgroup + PSI va KHONG ton trong --prefer/
+# --avoid cua earlyoom, nen no co the ban truoc va chon sai nan nhan.
+if systemctl is-active --quiet systemd-oomd 2>/dev/null; then
+  echo "CANH BAO: systemd-oomd dang chay song song voi earlyoom." >&2
+  echo "          Chinh sach cua no khong ton trong --prefer/--avoid o day." >&2
+  echo "          Nen chon MOT trong hai:" >&2
+  echo "            sudo systemctl disable --now systemd-oomd   # dung earlyoom" >&2
+  echo "          Xem muc \"systemd-oomd\" trong README." >&2
+  echo >&2
+fi
+
 echo "==> [1/4] Cai goi: earlyoom, systemd-zram-generator"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
@@ -58,12 +70,38 @@ echo "==> [4/4] Bat + khoi dong dich vu"
 systemctl daemon-reload
 systemctl enable --now earlyoom
 # zram-generator tao unit tu config luc boot; kick lai ngay cho phien hien tai
-systemctl restart systemd-zram-setup@zram0.service || true
+if ! systemctl restart systemd-zram-setup@zram0.service; then
+  echo "CANH BAO: khong restart duoc systemd-zram-setup@zram0.service." >&2
+  echo "          zram se duoc tao o lan boot ke tiep." >&2
+fi
+
+echo "==> Kiem chung"
+fail=0
+if systemctl is-active --quiet earlyoom; then
+  echo "  OK  earlyoom dang chay"
+else
+  echo "  LOI earlyoom KHONG chay: journalctl -u earlyoom -n 30" >&2; fail=1
+fi
+if swapon --show=NAME --noheadings | grep -q '^/dev/zram0$'; then
+  echo "  OK  zram0 da duoc kich hoat lam swap"
+else
+  echo "  LOI zram0 chua thanh swap (co the can reboot)" >&2; fail=1
+fi
+for kv in vm.swappiness=180 vm.page-cluster=0 vm.watermark_scale_factor=125; do
+  k="${kv%%=*}"; want="${kv#*=}"; got="$(sysctl -n "$k")"
+  if [[ "$got" == "$want" ]]; then echo "  OK  $k = $got"
+  else echo "  LOI $k = $got (mong doi $want)" >&2; fail=1; fi
+done
+
+if (( fail )); then
+  echo >&2
+  echo "==> Cai DAT XONG NHUNG CO LOI o tren. Xem lai truoc khi tin tuong." >&2
+  exit 1
+fi
 
 echo
-echo "==> Xong. Kiem tra:"
-echo "  systemctl status earlyoom --no-pager"
+echo "==> Xong, tat ca kiem chung deu dat."
 echo "  zramctl ; swapon --show"
-echo "  sysctl vm.swappiness vm.page-cluster vm.watermark_scale_factor"
+echo "  journalctl -u earlyoom -f"
 echo
 echo "Go cai: sudo ./uninstall.sh"
