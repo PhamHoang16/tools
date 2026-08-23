@@ -1,4 +1,18 @@
 # /etc/default/earlyoom
-# Kiem tra moi 60s; kich hoat khi RAM trong <=5% VA swap trong <=5%.
-# Uu tien "giet" 1 tab trinh duyet; tranh dong tien trinh he thong quan trong.
-EARLYOOM_ARGS="-r 60 -m 5 -s 5 -n -g --prefer '(^|/)(msedge|chrome|chromium|firefox|Web Content|Isolated Web Co)$' --avoid '(^|/)(init|systemd|Xorg|Xwayland|gnome-shell|gdm|sshd|dbus-daemon|NetworkManager|bash|zsh)$'"
+#
+# -r 60        Chu ky GHI LOG bao cao bo nho, KHONG phai chu ky kiem tra.
+#              earlyoom tu dieu chinh nhip kiem tra (cang gan nguong cang nhanh,
+#              xuong toi mili-giay), nen viec giam sat khong he cham 60s.
+#
+# -m 10 -s 10  Kich hoat khi RAM trong <=10% VA swap trong <=10% (dieu kien AND).
+#              Tren may RAM lon, 5% la qua muon: 5% cua 16G chi con ~800MB,
+#              luc do he thong thuong da thrash. 10% cho them khoang tho.
+#
+# -n           Bao desktop notification khi giet.
+#
+# KHONG dung -g:
+#              -g giet CA process group. Toan bo tien trinh cua mot trinh duyet
+#              Chromium thuong chung 1 PGID, nen -g = mat sach moi tab dang mo,
+#              chu khong phai "giet 1 tab". Bo -g thi earlyoom chi giet 1
+#              renderer -> mat dung 1 tab, va tab do reload lai duoc.
+EARLYOOM_ARGS="-r 60 -m 10 -s 10 -n --prefer '(^|/)(msedge|chrome|chromium|firefox|Web Content|Isolated Web Co)$' --avoid '(^|/)(init|systemd|Xorg|Xwayland|gnome-shell|gdm|sshd|dbus-daemon|NetworkManager|pipewire|wireplumber|bash|zsh)$'"
