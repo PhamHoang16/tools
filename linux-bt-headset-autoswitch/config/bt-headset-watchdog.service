@@ -1,0 +1,6 @@
+[Unit]
+Description=Watchdog tai nghe Bluetooth
+After=wireplumber.service
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/bt-headset-watchdog.sh
