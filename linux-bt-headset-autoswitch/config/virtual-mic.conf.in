@@ -1,0 +1,24 @@
+# Mic ảo luôn tồn tại, nối vào mic thật của tai nghe (chỉ có khi tai nghe ở HFP).
+# Lý do: ở A2DP tai nghe không có mic nào -> Chrome/Electron báo "no device found" và không bao giờ mở
+# luồng thu -> WirePlumber không bao giờ tự chuyển sang HFP. App mở mic ảo này -> WirePlumber chuyển HFP
+# -> bluez_input xuất hiện -> loopback tự nối vào.
+# install.sh thay @MAC_@ và @VMIC@ rồi đặt vào ~/.config/pipewire/pipewire.conf.d/bt-headset-mic.conf
+context.modules = [
+  { name = libpipewire-module-loopback
+    args = {
+      node.description = "Mic tai nghe Bluetooth (tự chuyển)"
+      capture.props = {
+        node.name = "@VMIC@.capture"
+        target.object = "bluez_input.@MAC_@.0"
+        audio.position = [ MONO ]
+        stream.dont-remix = true
+      }
+      playback.props = {
+        node.name = "@VMIC@"
+        node.description = "Mic tai nghe Bluetooth (tự chuyển)"
+        media.class = "Audio/Source"
+        audio.position = [ MONO ]
+      }
+    }
+  }
+]
