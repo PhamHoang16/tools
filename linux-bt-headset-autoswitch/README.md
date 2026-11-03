@@ -18,6 +18,7 @@ WirePlumber có sẵn cơ chế tự chuyển, nhưng thực tế hỏng theo nh
 | App mở mic nhưng **không tự chuyển** | App không đặt `media.role=Communication` và không có trong danh sách app của WirePlumber |
 | **Kẹt ở HFP** (tiếng tệ) dù đã tắt mic | Luồng thu bị "cork" chứ không đóng, WirePlumber không trả về A2DP |
 | Mất loa tai nghe, tiếng ra loa máy, profile **`audio-gateway`/`off`** | Sau khi ghép lại, tai nghe khai báo thêm Audio Source; WirePlumber chọn nhầm vai |
+| Tai nghe báo **đã kết nối nhưng máy không thấy** (không loa, không mic), hay gặp ở lần kết nối đầu buổi sáng | Điện thoại nối trước (kết nối kép); BlueZ lên kết nối nhưng không kênh A2DP/HFP nào lên → PipeWire không có card |
 | A2DP **"busy"** sau khi tai nghe kết nối | Bật kết nối kép (multipoint), điện thoại đang giữ A2DP |
 | Mở mic nhưng **thu ra im lặng tuyệt đối** | Tai nghe rớt sóng lúc đang HFP → WirePlumber nhớ nhầm "profile có mic" là A2DP (lỗi tự duy trì), hoặc kênh HFP chết không còn node mic |
 
@@ -31,6 +32,8 @@ WirePlumber có sẵn cơ chế tự chuyển, nhưng thực tế hỏng theo nh
 
 Watchdog làm gì, theo profile hiện tại:
 
+- **Đã kết nối nhưng không có card âm thanh** 2 lần kiểm liên tiếp → xin lại
+  A2DP (110b) + HFP (111e) qua D-Bus; không được thì kết nối lại tai nghe.
 - **HFP mà không app nào dùng mic** 2 lần kiểm liên tiếp → về A2DP tốt nhất
   đang có (LDAC > SBC-XQ > SBC).
 - **HFP mà không có node mic** (kênh HFP chết) 2 lần liên tiếp → kết nối lại tai nghe.

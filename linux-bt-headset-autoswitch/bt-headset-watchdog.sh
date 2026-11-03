@@ -4,6 +4,7 @@
 #  - HFP + không app nào thu mic qua 2 lần kiểm liên tiếp -> chuyển về A2DP tốt nhất (LDAC > SBC-XQ > SBC)
 #  - kẹt audio-gateway/off, hoặc A2DP rớt -> xin lại A2DP; không được thì kết nối lại, tối đa 1 lần / 10 phút
 #  - WirePlumber nhớ nhầm profile có mic, hoặc HFP không có mic -> tự sửa (xem chú thích bên dưới)
+#  - BlueZ báo đã kết nối nhưng không kênh âm thanh nào lên -> xin lại A2DP + HFP
 #  - giữ mic mặc định là mic ảo (xem config/virtual-mic.conf.in)
 # Cấu hình: ~/.config/bt-headset-watchdog.conf (MAC=..., VMIC=...), do install.sh tạo.
 set -u
@@ -29,7 +30,33 @@ best_a2dp() {
 notify() { notify-send -a "Bluetooth watchdog" "Tai nghe" "$1" 2>/dev/null || true; }
 
 card_info=$(pactl list cards 2>/dev/null | awk -v c="Name: $CARD" '$0 ~ c {p=1} p && /^Card #/ && seen {exit} p {seen=1; print}')
-[ -z "$card_info" ] && { rm -f "$STATE_DIR/idle_hfp"; exit 0; }   # tai nghe không kết nối
+if [ -z "$card_info" ]; then
+  rm -f "$STATE_DIR/idle_hfp"
+  # Lỗi 2026-11-03 (kết nối đầu buổi sáng, điện thoại đã nối trước): BlueZ báo Connected nhưng không kênh
+  # A2DP/HFP nào lên -> PipeWire không có card, máy không thấy tai nghe. Chờ 1 chu kỳ rồi xin từng kênh.
+  dev="/org/bluez/hci0/dev_${MAC//:/_}"
+  if timeout 5 busctl get-property org.bluez "$dev" org.bluez.Device1 Connected 2>/dev/null | grep -q true; then
+    if [ ! -f "$STATE_DIR/no_card" ]; then touch "$STATE_DIR/no_card"; exit 0; fi
+    rm -f "$STATE_DIR/no_card"
+    timeout 15 busctl call org.bluez "$dev" org.bluez.Device1 ConnectProfile s 0000110b-0000-1000-8000-00805f9b34fb >/dev/null 2>&1; sleep 2
+    timeout 15 busctl call org.bluez "$dev" org.bluez.Device1 ConnectProfile s 0000111e-0000-1000-8000-00805f9b34fb >/dev/null 2>&1; sleep 3
+    if pactl list cards | grep -q "Name: $CARD"; then
+      pactl list cards | grep -qE '^\s+a2dp-sink:.*available: yes' && pactl set-card-profile "$CARD" "$(best_a2dp)"
+      log "kết nối mà không có kênh âm thanh -> đã xin lại kênh, profile: $(pactl list cards | awk -v c="Name: $CARD" '$0 ~ c {p=1} p && /Active Profile/ {print $3; exit}')"
+    else
+      last=$(cat "$STATE_DIR/last_reconnect" 2>/dev/null || echo 0); now=$(date +%s)
+      if [ $((now - last)) -ge 600 ]; then
+        echo "$now" > "$STATE_DIR/last_reconnect"
+        log "kết nối mà không có kênh âm thanh, xin kênh không được -> kết nối lại tai nghe"
+        timeout 15 bluetoothctl disconnect "$MAC" >/dev/null 2>&1; sleep 4
+        timeout 25 bluetoothctl connect "$MAC" >/dev/null 2>&1
+      fi
+    fi
+  else
+    rm -f "$STATE_DIR/no_card"
+  fi
+  exit 0
+fi
 
 profile=$(echo "$card_info" | awk '/Active Profile/ {print $3; exit}')
 a2dp_avail=$(echo "$card_info" | grep -cE '^\s+a2dp-sink:.*available: yes')
