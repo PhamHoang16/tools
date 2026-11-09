@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test loa, mic, webcam</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #16181d; color: #e8eaed; font-family: Segoe UI, Arial, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 18px 20px 40px; }
+  h1 { font-size: 21px; margin: 0 0 4px; }
+  .sub { color: #aab0bb; font-size: 14px; margin-bottom: 14px; }
+  section { background: #1f222a; border: 1px solid #2f3440; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  h2 { font-size: 17px; margin: 0 0 8px; }
+  p, li { color: #c3c8d1; font-size: 14px; line-height: 1.6; margin: 4px 0; }
+  button { background: #2b3040; color: #e8eaed; border: 1px solid #444b5c; border-radius: 6px; padding: 8px 14px; font-size: 14px; cursor: pointer; margin: 4px 6px 4px 0; }
+  button:hover { background: #343a4d; }
+  button.primary { background: #2f6fde; border-color: #2f6fde; }
+  .meter { height: 18px; background: #0f1115; border-radius: 9px; overflow: hidden; margin: 8px 0; }
+  .meter > div { height: 100%; width: 0; background: linear-gradient(90deg, #2fa35f, #e0b400 70%, #d9372b); transition: width .06s; }
+  video { width: 100%; max-height: 420px; background: #000; border-radius: 8px; margin-top: 8px; }
+  .msg { font-size: 14px; color: #9fd1ff; min-height: 20px; }
+  .err { color: #ff8a80; }
+  label { font-size: 14px; color: #c3c8d1; }
+  ul { padding-left: 18px; margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🔊 Test loa · mic · webcam (offline)</h1>
+  <div class="sub">Chạy hoàn toàn trên máy, không gửi gì ra mạng. Trình duyệt sẽ hỏi quyền mic/webcam: bấm <b>Cho phép</b>.</div>
+
+  <section>
+    <h2>1. Loa trái / phải và tiếng rè</h2>
+    <p>Kéo âm lượng Windows lên khoảng 70–100%. Mỗi bên phải phát đúng phía, không rè, không lạch xạch.</p>
+    <button class="primary" data-pan="-1">◀ Loa TRÁI</button>
+    <button class="primary" data-pan="1">Loa PHẢI ▶</button>
+    <button data-pan="0">Cả hai</button>
+    <button id="sweep">Quét tần số 80 Hz → 10 kHz (soi rè, màng loa rách)</button>
+    <button id="stopTone">■ Dừng</button>
+    <div><label>Âm lượng thử: <input id="vol" type="range" min="0" max="1" step="0.05" value="0.4"></label></div>
+    <ul>
+      <li>Phát bên trái mà nghe bên phải = <b>đấu ngược dây loa</b>. Một bên câm = hỏng loa hoặc đứt dây.</li>
+      <li>Lúc quét, nếu ở dải trầm (đoạn đầu) nghe <b>rè, lạch xạch</b> = màng loa rách hoặc ốc lỏng.</li>
+      <li>Cắm tai nghe 3.5 mm rồi bấm lại để test luôn jack tai nghe.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>2. Micro</h2>
+    <button class="primary" id="micOn">Bật mic</button>
+    <button id="rec">Ghi 5 giây rồi phát lại</button>
+    <button id="micOff">Tắt mic</button>
+    <div class="meter"><div id="lvl"></div></div>
+    <div class="msg" id="micMsg">Nói bình thường: thanh mức phải nhảy lên rõ. Ghi âm rồi nghe lại xem có rè, nhỏ hay tiếng ù không.</div>
+    <audio id="playback" controls style="width:100%;margin-top:6px;display:none"></audio>
+  </section>
+
+  <section>
+    <h2>3. Webcam</h2>
+    <button class="primary" id="camOn">Bật webcam</button>
+    <button id="camOff">Tắt webcam</button>
+    <div class="msg" id="camMsg">Hình phải rõ, không sọc, không ám màu. Máy có nắp che camera thì gạt mở trước.</div>
+    <video id="vid" autoplay playsinline muted></video>
+  </section>
+
+  <section>
+    <h2>Thiết bị trình duyệt nhìn thấy</h2>
+    <div class="msg" id="devs">(bật mic hoặc webcam trước để hiện tên thiết bị)</div>
+    <p>Nếu trang này không hỏi quyền hoặc báo lỗi, hãy dùng app <b>Camera</b> và <b>Sound Recorder</b> có sẵn của Windows.</p>
+  </section>
+</div>
+
+<script>
+let ctx, osc, gain, pan, micStream, camStream, analyser, raf;
+const $ = id => document.getElementById(id);
+const vol = () => parseFloat($('vol').value);
+
+function audioCtx() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+function stopTone() {
+  if (osc) { try { osc.stop(); } catch (_) {} osc.disconnect(); osc = null; }
+}
+function tone(panValue, sweep) {
+  const c = audioCtx(); stopTone();
+  osc = c.createOscillator(); gain = c.createGain(); pan = c.createStereoPanner();
+  osc.type = 'sine'; pan.pan.value = panValue; gain.gain.value = vol();
+  osc.connect(gain).connect(pan).connect(c.destination);
+  const t = c.currentTime;
+  if (sweep) {
+    osc.frequency.setValueAtTime(80, t);
+    osc.frequency.exponentialRampToValueAtTime(10000, t + 12);
+    osc.start(t); osc.stop(t + 12);
+  } else {
+    osc.frequency.value = 440;
+    osc.start(t); osc.stop(t + 3);
+  }
+}
+document.querySelectorAll('[data-pan]').forEach(b => b.onclick = () => tone(parseFloat(b.dataset.pan), false));
+$('sweep').onclick = () => tone(0, true);
+$('stopTone').onclick = stopTone;
+$('vol').oninput = () => { if (gain) gain.gain.value = vol(); };
+
+function mediaError(el, e) {
+  let why = e && e.name ? e.name : String(e);
+  if (why === 'NotAllowedError') why = 'Bị từ chối quyền. Bấm biểu tượng ổ khóa/camera trên thanh địa chỉ để cho phép rồi thử lại.';
+  else if (why === 'NotFoundError') why = 'KHÔNG tìm thấy thiết bị: có thể hỏng, bị tắt trong BIOS/Device Manager, hoặc chưa có driver.';
+  else if (why === 'NotReadableError') why = 'Thiết bị đang bị app khác dùng hoặc lỗi phần cứng.';
+  el.innerHTML = '<span class="err">Lỗi: ' + why + '</span>';
+}
+function noMedia(el) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    el.innerHTML = '<span class="err">Trình duyệt chặn mic/webcam khi mở file theo cách này. Hãy mở bằng Microsoft Edge hoặc Chrome, hoặc dùng app Camera / Sound Recorder của Windows.</span>';
+    return true;
+  }
+  return false;
+}
+async function listDevices() {
+  try {
+    const d = await navigator.mediaDevices.enumerateDevices();
+    const name = k => d.filter(x => x.kind === k).map(x => x.label || '(chưa có tên)').join(' · ') || 'không có';
+    $('devs').innerHTML = '<b>Mic:</b> ' + name('audioinput') + '<br><b>Loa:</b> ' + name('audiooutput') + '<br><b>Webcam:</b> ' + name('videoinput');
+  } catch (_) {}
+}
+
+$('micOn').onclick = async () => {
+  if (noMedia($('micMsg'))) return;
+  try {
+    if (!micStream) micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const c = audioCtx();
+    analyser = c.createAnalyser(); analyser.fftSize = 1024;
+    c.createMediaStreamSource(micStream).connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    clearInterval(raf);
+    raf = setInterval(() => {
+      analyser.getFloatTimeDomainData(buf);
+      let s = 0; for (const v of buf) s += v * v;
+      const rms = Math.sqrt(s / buf.length);
+      $('lvl').style.width = Math.min(100, rms * 400) + '%';
+    }, 60);
+    $('micMsg').textContent = 'Mic đang bật: ' + micStream.getAudioTracks()[0].label;
+    listDevices();
+  } catch (e) { mediaError($('micMsg'), e); }
+};
+$('rec').onclick = async () => {
+  if (!micStream) { await $('micOn').onclick(); if (!micStream) return; }
+  if (typeof MediaRecorder === 'undefined') { $('micMsg').textContent = 'Trình duyệt không hỗ trợ ghi âm.'; return; }
+  const chunks = [], r = new MediaRecorder(micStream);
+  r.ondataavailable = e => chunks.push(e.data);
+  r.onstop = () => {
+    const a = $('playback'); a.src = URL.createObjectURL(new Blob(chunks, { type: r.mimeType })); a.style.display = 'block'; a.play();
+    $('micMsg').textContent = 'Đang phát lại 5 giây vừa ghi: nghe có rõ, đủ to, không rè/ù?';
+  };
+  r.start(); $('micMsg').textContent = '● Đang ghi 5 giây… hãy nói gì đó.';
+  setTimeout(() => r.stop(), 5000);
+};
+$('micOff').onclick = () => {
+  clearInterval(raf); $('lvl').style.width = '0';
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  $('micMsg').textContent = 'Đã tắt mic.';
+};
+
+$('camOn').onclick = async () => {
+  if (noMedia($('camMsg'))) return;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    $('vid').srcObject = camStream;
+    const s = camStream.getVideoTracks()[0].getSettings();
+    $('camMsg').textContent = `Webcam: ${camStream.getVideoTracks()[0].label} · ${s.width}×${s.height} (720p = 1280×720, 1080p = 1920×1080)`;
+    listDevices();
+  } catch (e) { mediaError($('camMsg'), e); }
+};
+$('camOff').onclick = () => {
+  if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+  $('vid').srcObject = null; $('camMsg').textContent = 'Đã tắt webcam.';
+};
+</script>
+</body>
+</html>

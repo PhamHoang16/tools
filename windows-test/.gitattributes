@@ -1,0 +1,2 @@
+# File .bat phai giu xuong dong CRLF (cmd.exe doc LF de loi) - luu nguyen ban, khong cho git doi
+*.bat -text
